@@ -428,6 +428,8 @@ function TDS:ResetAllStates()
 end
 
 function TDS:RunStrategy()
+    if not Globals.AutoRestart then return end
+
     if Globals.activeStrategyThread then
         pcall(task.cancel, Globals.activeStrategyThread)
         Globals.activeStrategyThread = nil
@@ -436,13 +438,14 @@ function TDS:RunStrategy()
     Globals.activeStrategyThread = task.spawn(function()
         Globals.tdsReplaying = true
         pcall(function()
-            loadstring(readfile("ADS_LastStrat.lua"))()
+            if isfile("ADS_LastStrat.lua") then
+                loadstring(readfile("ADS_LastStrat.lua"))()
+            end
         end)
         Globals.tdsReplaying = false
         Globals.activeStrategyThread = nil
     end)
 end
-
 -- // load & save
 local function SaveSettings()
     local DataToSave = {}
