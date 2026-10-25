@@ -2977,6 +2977,7 @@ local function CheckResOk(data)
 end
 
 -- // scrap ui for match data
+-- // scrap ui for match data
 local function GetAllRewards()
     local results = {
         Coins = 0, 
@@ -2989,71 +2990,82 @@ local function GetAllRewards()
         Others = {} 
     }
 
-    local UiRoot = PlayerGui:FindFirstChild("ReactGameNewRewards")
-    local MainFrame = UiRoot and UiRoot:FindFirstChild("Frame")
-    local GameOver = MainFrame and MainFrame:FindFirstChild("gameOver")
-    local RewardsScreen = GameOver and GameOver:FindFirstChild("RewardsScreen")
+    pcall(function()
+        local UiRoot = PlayerGui:FindFirstChild("ReactGameNewRewards")
+        local MainFrame = UiRoot and UiRoot:FindFirstChild("Frame")
+        local GameOver = MainFrame and MainFrame:FindFirstChild("gameOver")
+        local RewardsScreen = GameOver and GameOver:FindFirstChild("RewardsScreen")
 
-    local GameStats = RewardsScreen and RewardsScreen:FindFirstChild("gameStats")
-    local StatsList = GameStats and GameStats:FindFirstChild("stats")
+        local GameStats = RewardsScreen and RewardsScreen:FindFirstChild("gameStats")
+        local StatsList = GameStats and GameStats:FindFirstChild("stats")
 
-    if StatsList then
-        for _, frame in ipairs(StatsList:GetChildren()) do
-            local l1 = frame:FindFirstChild("textLabel")
-            local l2 = frame:FindFirstChild("textLabel2")
-            if l1 and l2 and l1.Text:find("Time Completed:") then
-                results.Time = l2.Text
-                break
+        if StatsList then
+            for _, frame in ipairs(StatsList:GetChildren()) do
+                local l1 = frame:FindFirstChild("textLabel") or frame:FindFirstChild("TextLabel")
+                local l2 = frame:FindFirstChild("textLabel2") or frame:FindFirstChild("TextLabel2")
+                if l1 and l2 and l1.Text:find("Time Completed:") then
+                    results.Time = l2.Text
+                    break
+                end
             end
         end
-    end
 
-    local TopBanner = RewardsScreen and RewardsScreen:FindFirstChild("RewardBanner")
-    if TopBanner and TopBanner:FindFirstChild("textLabel") then
-        local txt = TopBanner.textLabel.Text:upper()
-        results.Status = txt:find("TRIUMPH") and "WIN" or (txt:find("LOST") and "LOSS" or "UNKNOWN")
-    end
+        local TopBanner = RewardsScreen and RewardsScreen:FindFirstChild("RewardBanner")
+        local BannerLabel = TopBanner and (TopBanner:FindFirstChild("TextLabel") or TopBanner:FindFirstChild("textLabel"))
+        if BannerLabel then
+            local txt = BannerLabel.Text:upper()
+            results.Status = txt:find("TRIUMPH") and "WIN" or ((txt:find("LOST") or txt:find("OVER")) and "LOSS" or "UNKNOWN")
+        end
 
-    local LevelValue = LocalPlayer.Level
-    if LevelValue then
-        results.Level = LevelValue.Value or 0
-    end
+        local LevelValue = LocalPlayer:FindFirstChild("Level")
+        if LevelValue then
+            results.Level = LevelValue.Value or 0
+        end
 
-    local label = PlayerGui:WaitForChild("ReactGameTopGameDisplay").Frame.wave.container.value
-    local WaveNum = label.Text:match("^(%d+)")
+        -- Safe lookup without infinite WaitForChild
+        local TopDisplay = PlayerGui:FindFirstChild("ReactGameTopGameDisplay")
+        local WaveLabel = TopDisplay 
+            and TopDisplay:FindFirstChild("Frame") 
+            and TopDisplay.Frame:FindFirstChild("wave") 
+            and TopDisplay.Frame.wave:FindFirstChild("container") 
+            and TopDisplay.Frame.wave.container:FindFirstChild("value")
 
-    if WaveNum then
-        results.Wave = tonumber(WaveNum) or 0
-    end
+        if WaveLabel and WaveLabel:IsA("TextLabel") then
+            local WaveNum = WaveLabel.Text:match("^(%d+)")
+            if WaveNum then
+                results.Wave = tonumber(WaveNum) or 0
+            end
+        end
 
-    local SectionRewards = RewardsScreen and RewardsScreen:FindFirstChild("RewardsSection")
-    if SectionRewards then
-        for _, item in ipairs(SectionRewards:GetChildren()) do
-            if tonumber(item.Name) then 
-                local IconId = "0"
-                local img = item:FindFirstChildWhichIsA("ImageLabel", true)
-                if img then IconId = img.Image:match("%d+") or "0" end
+        local SectionRewards = RewardsScreen and RewardsScreen:FindFirstChild("RewardsSection")
+        if SectionRewards then
+            for _, item in ipairs(SectionRewards:GetChildren()) do
+                if tonumber(item.Name) then 
+                    local IconId = "0"
+                    local img = item:FindFirstChildWhichIsA("ImageLabel", true)
+                    if img then IconId = img.Image:match("%d+") or "0" end
 
-                for _, child in ipairs(item:GetDescendants()) do
-                    if child:IsA("TextLabel") then
-                        local text = child.Text
-                        local amt = tonumber(text:match("(%d+)")) or 0
+                    for _, child in ipairs(item:GetDescendants()) do
+                        if child:IsA("TextLabel") then
+                            local text = child.Text
+                            local amt = tonumber(text:match("(%d+)")) or 0
 
-                        if text:find("Coins") then
-                            results.Coins = amt
-                        elseif text:find("Gems") then
-                            results.Gems = amt
-                        elseif text:find("XP") then
-                            results.XP = amt
-                        elseif text:lower():find("x%d+") then 
-                            local displayName = ItemNames[IconId] or "Unknown Item (" .. IconId .. ")"
-                            table.insert(results.Others, {Amount = text:match("x%d+"), Name = displayName})
+                            if text:find("Coins") then
+                                results.Coins = amt
+                            elseif text:find("Gems") then
+                                results.Gems = amt
+                            elseif text:find("XP") then
+                                results.XP = amt
+                            elseif text:lower():find("x%d+") then 
+                                local displayName = ItemNames[IconId] or "Unknown Item (" .. IconId .. ")"
+                                table.insert(results.Others, {Amount = text:match("x%d+"), Name = displayName})
+                            end
                         end
                     end
                 end
             end
         end
-    end
+    end)
 
     return results
 end
@@ -3162,102 +3174,86 @@ end
 
 local function HandlePostMatch(skipRejoin)
     local UiRoot
+    local timeout = 0
     repeat
         task.wait(1)
-
+        timeout += 1
         local root = PlayerGui:FindFirstChild("ReactGameNewRewards")
         local frame = root and root:FindFirstChild("Frame")
         local gameOver = frame and frame:FindFirstChild("gameOver")
         local RewardsScreen = gameOver and gameOver:FindFirstChild("RewardsScreen")
         UiRoot = RewardsScreen and RewardsScreen:FindFirstChild("RewardsSection")
-    until UiRoot
+    until UiRoot or timeout >= 15
 
-    if not UiRoot then 
-        if not skipRejoin then
-            return RejoinMatch() 
-        else
-            return
-        end
+    if not Globals.AutoRejoin and not Globals.AutoRestart and not Globals.AutoRematch then return end
+
+    if Globals.SendWebhook and Globals.WebhookURL and Globals.WebhookURL ~= "" then
+        task.wait(1)
+        pcall(function()
+            local match = GetAllRewards()
+
+            CurrentTotalCoins += match.Coins
+            CurrentTotalGems += match.Gems
+
+            local BonusString = ""
+            if #match.Others > 0 then
+                for _, res in ipairs(match.Others) do
+                    BonusString = BonusString .. "🎁 **" .. res.Amount .. " " .. res.Name .. "**\n"
+                end
+            else
+                BonusString = "_No bonus rewards found._"
+            end
+
+            local PostData = {
+                username = "TDS AutoStrat",
+                embeds = {{
+                    title = (match.Status == "WIN" and "🏆 TRIUMPH" or "💀 DEFEAT"),
+                    color = (match.Status == "WIN" and 0x2ecc71 or 0xe74c3c),
+                    description =
+                        "### 📋 Match Overview\n" ..
+                        "> **Status:** `" .. match.Status .. "`\n" ..
+                        "> **Time:** `" .. match.Time .. "`\n" ..
+                        "> **Current Level:** `" .. match.Level .. "`\n" ..
+                        "> **Wave:** `" .. match.Wave .. "`\n",
+
+                    fields = {
+                        {
+                            name = "✨ Rewards",
+                            value = "```ansi\n" ..
+                                    "\27[2;33mCoins:\27[0m +" .. match.Coins .. "\n" ..
+                                    "\27[2;34mGems: \27[0m +" .. match.Gems .. "\n" ..
+                                    "\27[2;32mXP:   \27[0m +" .. match.XP .. "```",
+                            inline = false
+                        },
+                        {
+                            name = "🎁 Bonus Items",
+                            value = BonusString,
+                            inline = true
+                        },
+                        {
+                            name = "📊 Session Totals",
+                            value = "```py\n# Total Amount\nCoins: " .. CurrentTotalCoins .. "\nGems:  " .. CurrentTotalGems .. "```",
+                            inline = true
+                        }
+                    },
+                    footer = { text = "Logged for " .. LocalPlayer.Name .. " • TDS AutoStrat" },
+                    timestamp = DateTime.now():ToIsoDate()
+                }}
+            }
+
+            SendRequest({
+                Url = Globals.WebhookURL,
+                Method = "POST",
+                Headers = { ["Content-Type"] = "application/json" },
+                Body = HttpService:JSONEncode(PostData)
+            })
+        end)
+        task.wait(0.5)
     end
-    -- Inside HandlePostMatch(skipRejoin), replace line 1536:
-	if not Globals.AutoRejoin and not Globals.AutoRestart and not Globals.AutoRematch then return end
-
-    if not Globals.SendWebhook then
-        if not skipRejoin then
-            RejoinMatch()
-        end
-        return
-    end
-
-    task.wait(1)
-
-    local match = GetAllRewards()
-
-    CurrentTotalCoins += match.Coins
-    CurrentTotalGems += match.Gems
-
-    local BonusString = ""
-    if #match.Others > 0 then
-        for _, res in ipairs(match.Others) do
-            BonusString = BonusString .. "🎁 **" .. res.Amount .. " " .. res.Name .. "**\n"
-        end
-    else
-        BonusString = "_No bonus rewards found._"
-    end
-
-    local PostData = {
-        username = "TDS AutoStrat",
-        embeds = {{
-            title = (match.Status == "WIN" and "🏆 TRIUMPH" or "💀 DEFEAT"),
-            color = (match.Status == "WIN" and 0x2ecc71 or 0xe74c3c),
-            description =
-                "### 📋 Match Overview\n" ..
-                "> **Status:** `" .. match.Status .. "`\n" ..
-                "> **Time:** `" .. match.Time .. "`\n" ..
-                "> **Current Level:** `" .. match.Level .. "`\n" ..
-                "> **Wave:** `" .. match.Wave .. "`\n",
-
-            fields = {
-                {
-                    name = "✨ Rewards",
-                    value = "```ansi\n" ..
-                            "[2;33mCoins:[0m +" .. match.Coins .. "\n" ..
-                            "[2;34mGems: [0m +" .. match.Gems .. "\n" ..
-                            "[2;32mXP:   [0m +" .. match.XP .. "```",
-                    inline = false
-                },
-                {
-                    name = "🎁 Bonus Items",
-                    value = BonusString,
-                    inline = true
-                },
-                {
-                    name = "📊 Session Totals",
-                    value = "```py\n# Total Amount\nCoins: " .. CurrentTotalCoins .. "\nGems:  " .. CurrentTotalGems .. "```",
-                    inline = true
-                }
-            },
-            footer = { text = "Logged for " .. LocalPlayer.Name .. " • TDS AutoStrat" },
-            timestamp = DateTime.now():ToIsoDate()
-        }}
-    }
-
-    pcall(function()
-        SendRequest({
-            Url = Globals.WebhookURL,
-            Method = "POST",
-            Headers = { ["Content-Type"] = "application/json" },
-            Body = game:GetService("HttpService"):JSONEncode(PostData)
-        })
-    end)
-
-    task.wait(1.5)
 
     if not skipRejoin then
         RejoinMatch()
     end
-
-    task.wait(9e9)
 end
 
 local function MatchReadyUp()
