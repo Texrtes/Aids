@@ -4241,9 +4241,12 @@ local function strategyRecordingSetup()
                     local actionString = string.format("TDS:%s(%s)", methodName, table.concat(stringifiedArguments, ", "))
                     table.insert(executed_actions, actionString)
                     
-                    local strategyFileContent = "local TDS = shared.TDSTable or loadstring(game:HttpGet(\"https://raw.githubusercontent.com/DuxiiT/auto-strat/refs/heads/main/Library.lua\"))()\n\n"
-                    strategyFileContent = strategyFileContent .. table.concat(executed_actions, "\n")
-                    writefile("ADS_LastStrat.lua", strategyFileContent)
+                    -- Only write ADS_LastStrat.lua if AutoRestart is ON
+                    if Globals.AutoRestart then
+                        local strategyFileContent = "local TDS = shared.TDSTable or loadstring(game:HttpGet(\"https://raw.githubusercontent.com/DuxiiT/auto-strat/refs/heads/main/Library.lua\"))()\n\n"
+                        strategyFileContent = strategyFileContent .. table.concat(executed_actions, "\n")
+                        writefile("ADS_LastStrat.lua", strategyFileContent)
+                    end
                 end
             end
             
@@ -4254,7 +4257,8 @@ end
 
 strategyRecordingSetup()
 
-if (GameState == "LOBBY" and Globals.AutoRejoin) or Globals.AutoRematch then
+-- Delete any leftover ADS_LastStrat.lua if in Lobby, or if AutoRestart is OFF
+if GameState == "LOBBY" or not Globals.AutoRestart or Globals.AutoRematch then
     if isfile("ADS_LastStrat.lua") then
         pcall(delfile, "ADS_LastStrat.lua")
     end
