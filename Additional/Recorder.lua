@@ -10,6 +10,7 @@ return function(ctx)
     local http_service = ctx.HttpService or game:GetService("HttpService")
     local game_state = ctx.GameState or "UNKNOWN"
     local workspace_ref = ctx.workspace or workspace
+    local SetSetting = ctx.SetSetting
 
     local players_service = game:GetService("Players")
     local local_player = ctx.LocalPlayer or players_service.LocalPlayer or players_service.PlayerAdded:Wait()
@@ -28,14 +29,10 @@ return function(ctx)
         end
     end
 
-    local function format_strat_filename(input_name)
-        local name = tostring(input_name or ""):match("^%s*(.-)%s*$")
-        if name == "" then
-            name = "Player[1].lua"
-        end
-        -- Remove invalid filesystem characters
+    local function format_strat_filename(text)
+        local name = tostring(text or ""):match("^%s*(.-)%s*$")
+        if name == "" then name = "Player[1].lua" end
         name = name:gsub('[\\/:*?"<>|]', "_")
-        -- Append .lua if the user didn't specify .lua or .txt
         local lower = name:lower()
         if not (lower:sub(-4) == ".lua" or lower:sub(-4) == ".txt") then
             name = name .. ".lua"
@@ -700,17 +697,24 @@ return function(ctx)
             Size = UDim2.new(0, 330, 0, 230)
         })
 
+        RecorderTab:Section({Title = "Recorder Config"})
         RecorderTab:Textbox({
             Title = "Strategy File Name",
-            Desc = "Saved inside workspace/[MAINLIB_RE]/ (supports .lua or .txt)",
+            Desc = "Saved in workspace/[MAINLIB_RE]/ (.lua or .txt)",
             Placeholder = "Player[1].lua",
             Value = Globals.StratFileName or "Player[1].lua",
             ClearTextOnFocus = false,
             Callback = function(text)
-                local formatted = format_strat_filename(text)
-                Globals.StratFileName = formatted
-                if ctx.SetSetting then
-                    pcall(ctx.SetSetting, "StratFileName", formatted)
+                local name = tostring(text or ""):match("^%s*(.-)%s*$")
+                if name == "" then name = "Player[1].lua" end
+                name = name:gsub('[\\/:*?"<>|]', "_")
+                local lower = name:lower()
+                if not (lower:sub(-4) == ".lua" or lower:sub(-4) == ".txt") then
+                    name = name .. ".lua"
+                end
+                Globals.StratFileName = name
+                if SetSetting then
+                    pcall(SetSetting, "StratFileName", name)
                 end
             end
         })
@@ -751,7 +755,7 @@ return function(ctx)
                     return
                 end
 
-                local full_path, clean_name = get_strat_filepath()
+                local full_path = get_strat_filepath()
                 Recorder:Log("Recorder started -> " .. full_path)
 
                 local current_mode = "Unknown"
@@ -856,7 +860,7 @@ TDS:Mode("%s")%s
 
                 Window:Notify({
                     Title = "ADS",
-                    Desc = "Recording to " .. full_path .. " — you may place your towers now.",
+                    Desc = "Recorder has started (" .. full_path .. "), you may place down your towers now.",
                     Time = 3,
                     Type = "normal"
                 })
@@ -871,10 +875,10 @@ TDS:Mode("%s")%s
                 if has_hook then
                     local full_path = get_strat_filepath()
                     Recorder:Clear()
-                    Recorder:Log("Strategy saved! You may find it in \nyour workspace folder at: '" .. full_path .. "'")
+                    Recorder:Log("Strategy saved, you may find it in \nyour workspace folder called '" .. full_path .. "'")
                     Window:Notify({
                         Title = "ADS",
-                        Desc = "Recording saved! Check workspace/" .. full_path,
+                        Desc = "Recording has been saved! Check your workspace folder for " .. full_path,
                         Time = 3,
                         Type = "normal"
                     })
